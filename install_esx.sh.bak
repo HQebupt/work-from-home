@@ -54,8 +54,8 @@ parseArguments(){
 #
 ########################################################
 buildJson(){
-    sed -i "s/{version}/${VERSION}/g" ${JSON_FILE}
-    sed -i "s/{rootPassword}/${ROOT_PASSWORD}/g" ${JSON_FILE}
+    sed -i extension "s/{version}/${VERSION}/g" ${JSON_FILE}
+    sed -i extension "s/{rootPassword}/${ROOT_PASSWORD}/g" ${JSON_FILE}
 
 }
 
@@ -67,7 +67,7 @@ setBmc(){
 }
 
 postRequest(){
-    GRAPH_ID=$(curl -X POST -H 'Content-Type: application/json' -d @${JSON_FILE} ${RACKHD_IP}/api/2.0/nodes/${NODE_ID}/workflows?name=Graph.InstallESXi | jq '. | {instanceId: .instanceId}' |grep "instanceId" | awk -F '"' '{print $(NF-1)}')
+    GRAPH_ID=$(curl -X POST -H 'Content-Type: application/json' -d @${JSON_FILE} ${RACKHD_IP}/api/2.0/nodes/${NODE_ID}/workflows?name=Graph.InstallESXi | jq '. | {instanceId: .instanceId}' |grep "instanceId" | awk -F ':' '{print $NF}' | sed '/^ .*/s/ //')
 }
 
 getProgress(){
@@ -87,7 +87,7 @@ main(){
     parseArguments "$@"
 
     echo "Build json file for install os."
-    buildJson
+    #buildJson
 
     echo "Set bmc."
     #setBmc
