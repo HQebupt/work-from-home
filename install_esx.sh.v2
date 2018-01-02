@@ -115,10 +115,11 @@ postRequest(){
 }
 
 getProgress(){
-    echo "Get os progress."
+    echo "Get os progress.~~~~~~~~~~~~~~~~~~~~~~~~~~v2"
     for NODE_ID in ${NODE_ARRAY[@]}
     do
         GRAPH_ID=${GRAPH_MAP[${NODE_ID}]}
+        touch graph-progress-${NODE_ID}.log
         sudo node sniff-progress.js "on.events" graph.progress.updated.information.${GRAPH_ID}.${NODE_ID} > graph-progress-${NODE_ID}.log 2>&1 &
     done
     sleep 1
