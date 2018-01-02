@@ -1,0 +1,157 @@
+#!/bin/bash -ex
+
+#########################################
+#
+#  Usage
+#
+#########################################
+Usage(){
+    echo "Function: this script is used to install ESXi by RackHD "
+    echo "usage: $0 [arguments]"
+    echo "    Optional Arguments:"
+    echo "      --VERSION"
+    echo "      --ROOT_PASSWORD"
+    echo "      --DNS_SERVERS"
+    echo "      --IP_ADDRESS"
+    echo "      --GATEWAY"
+    echo "      --NETMASK"
+    echo "      --JSON_FILE"
+}
+
+
+###################################################################
+#
+#  Parse and check Arguments
+#
+##################################################################
+parseArguments(){
+    while [ "$1" != "" ]; do
+        case $1 in
+            --VERSION )                     shift
+                                            VERSION=$1
+                                            ;;
+            --ROOT_PASSWORD )               shift
+                                            ROOT_PASSWORD=$1
+                                            ;;
+            --DNS_SERVERS)                  shift
+                                            DNS_SERVERS=$1
+                                            ;;
+            --IP_ADDRESS)                   shift
+                                            IP_ADDRESS=$1
+                                            ;;
+            --GATEWAY)                      shift
+                                            GATEWAY=$1
+                                            ;;
+            --NETMASK)                      shift
+                                            NETMASK=$1
+                                            ;;
+            --JSON_FILE)                    shift
+                                            NETMASK=$1
+                                            ;;
+            * )
+                                            Usage
+                                            exit 1
+        esac
+        shift
+    done
+    if [ ! -n "${VERSION}" ]; then
+        echo "[Error]Arguments VERSION is required"
+        exit 1
+    fi
+    # 非用户输入: 从何处得到这些值
+    NODE_ARRAY=("5a42662ea52ab966184b2378")
+    BMC_USER=root
+    BMC_PASSWORD=1234567
+    BMC_HOST=192.168.128.61
+    RACKHD_IP=192.168.128.60:8080
+    JSON_FILE=payload.json
+
+    # catalog 拿取的关键信息
+    DEVICE=vmnic0
+    INSTALL_DISK=sda
+
+    # 用户输入的信息
+    IP_ADDRESS=10.62.59.209
+    GATEWAY=10.62.59.1
+    NETMASK=255.255.255.0
+    #INSTALL_DISK=0
+}
+
+
+#########################################################
+#
+# buildJson
+#
+########################################################
+buildJson(){
+    sed -i "s/{version}/${VERSION}/g" ${JSON_FILE}
+    sed -i "s/{rackhd_ip}/${RACKHD_IP}/g" ${JSON_FILE}
+    sed -i "s/{rootPassword}/${ROOT_PASSWORD}/g" ${JSON_FILE}
+    sed -i "s/{dnsServers}/${DNS_SERVERS}/g" ${JSON_FILE}
+    sed -i "s/{device}/${DEVICE}/g" ${JSON_FILE}
+    sed -i "s/{ipAddr}/${IP_ADDRESS}/g" ${JSON_FILE}
+    sed -i "s/{gateway}/${GATEWAY}/g" ${JSON_FILE}
+    sed -i "s/{netmask}/${NETMASK}/g" ${JSON_FILE}
+    sed -i "s/{installDisk}/${INSTALL_DISK}/g" ${JSON_FILE}
+}
+
+setBmc(){
+    obmData='{ "nodeId": "{nodeId}", "service": "ipmi-obm-service", "config": { "user": "{bmcUser}", "password": "{bmcPassword}", "host": "{bmcHost}" } }'
+    for NODE_ID in ${NODE_ARRAY[@]}
+    do
+        obmDataDone=$(echo "${obmData}" | sed -e "s/{nodeId}/${NODE_ID}/" -e "s/{bmcUser}/${BMC_USER}/" -e "s/{bmcPassword}/${BMC_PASSWORD}/" -e "s/{bmcHost}/${BMC_HOST}/")
+        echo "obmDataDone:${obmDataDone}"
+        curl -k -X PUT -H 'Content-Type: application/json' -d ${obmDataDone} ${RACKHD_IP}/api/2.0/obms
+    done
+}
+
+declare -A GRAPH_MAP=()
+postRequest(){
+    for NODE_ID in ${NODE_ARRAY[@]}
+    do
+        GRAPH_ID=$(curl -X POST -H 'Content-Type: application/json' -d @${JSON_FILE} ${RACKHD_IP}/api/2.0/nodes/${NODE_ID}/workflows?name=Graph.InstallESXi | jq '. | {instanceId: .instanceId}' |grep "instanceId" | awk -F '"' '{print $(NF-1)}')
+        GRAPH_MAP[${NODE_ID}]=${GRAPH_ID}
+    done
+}
+
+getProgress(){
+    echo "Get os progress."
+    for NODE_ID in ${NODE_ARRAY[@]}
+    do
+        GRAPH_ID=${GRAPH_MAP[${NODE_ID}]}
+        sudo node sniff-progress.js "on.events" graph.progress.updated.information.${GRAPH_ID}.${NODE_ID} > graph-progress-${NODE_ID}.log 2>&1 &
+    done
+    sleep 1
+    tail -f graph-progress-*.log
+}
+
+#######################################################
+#
+# Main
+#
+########################################################
+
+main(){
+    echo "Install OS start to parse arguments."
+    parseArguments "$@"
+
+    echo "Build json file for install os. Nodes has the same payload.json"
+    buildJson
+
+    echo "Set bmc. Nodes has the same bmc settings."
+    #setBmc
+
+    echo "Post a http request to RackHD."
+    postRequest
+
+    echo "Get OS install progress."
+    getProgress
+
+#    if [ -n "$MANIFEST_FILE" ]; then
+#         cloneCodeFromManifest "$on_build_config_dir"  "$MANIFEST_FILE"  $CLONE_DIR
+#    fi
+
+    echo "$0 done."
+}
+
+main "$@"
