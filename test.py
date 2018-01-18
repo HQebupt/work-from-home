@@ -6,13 +6,14 @@ X,Y,Z,V,x,y,z = symbols('X Y Z V x y z');
 ## step 1: result1 is list.
 def step1(L, a ,b):
     global X,Y,Z
+    print "\n\n\nInput:(L,a,b):", L, a, b;
     print "###########[Step1]###########"
     result1 = solve([116.0 * ((Y / 100.0) ** (1.0/3.0)) - 16.0 - L,
         500 * ( (X / 98.81) ** (1.0 / 3.0) - (Y / 100.0) ** (1.0 / 3.0) ) - a,
         200 * ( (Y / 100.0) ** (1.0 / 3.0) - (Z / 107.32) ** (1.0 / 3.0) ) - b], [X, Y, Z]);
     for item in result1:
         X,Y,Z = item;
-        print "\nvalid value list:"
+        print "valid value list:"
         print "X,Y,Z:",X,Y,Z
         step2(Y);
         step3(X, Y, Z);
